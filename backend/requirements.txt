@@ -13,3 +13,6 @@ python-docx
 python-dotenv
 websockets
 langchain-ollama
+websockets 
+aiohttp
+langdetect

@@ -8,129 +8,208 @@ from langchain_community.vectorstores import (
     FAISS
 )
 
-from langchain_community.embeddings import (
+from langchain_huggingface import (
     HuggingFaceEmbeddings
 )
 
-VECTOR_PATH = "backend/faiss_db"
+VECTOR_PATH = "faiss_db"
 
 print("Loading Embedding Model...")
 
 embeddings = HuggingFaceEmbeddings(
-    model_name="all-MiniLM-L6-v2"
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
-print("Embedding Model Loaded Successfully")
+print("Embedding Model Loaded")
+
+vector_db = None
 
 
-def create_vector_db(text):
+##################################################
+# Create / Append Embeddings
+##################################################
+def create_vector_db(
+        text,
+        source="Unknown"
+):
 
-    print("\n========== EMBEDDING START ==========")
+    global vector_db
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
+    splitter = (
+        RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200
+        )
     )
 
-    chunks = splitter.split_text(text)
+    chunks = splitter.split_text(
+        text
+    )
 
-    print(f"Total Chunks Generated : {len(chunks)}")
+    print(
+        f"\nTotal Chunks : {len(chunks)}"
+    )
 
-    for i, chunk in enumerate(chunks):
+    metadatas = [
+        {
+            "source": source
+        }
+        for _ in chunks
+    ]
 
-        print(f"\n----- Chunk {i+1} -----")
-        print(chunk[:500])
+    ##################################################
 
-    if os.path.exists(VECTOR_PATH):
+    if not os.path.exists(
+            VECTOR_PATH
+    ):
 
-        print("Existing FAISS DB Found")
-
-        db = FAISS.load_local(
-            VECTOR_PATH,
-            embeddings,
-            allow_dangerous_deserialization=True
+        print(
+            "Creating New FAISS DB..."
         )
 
-        db.add_texts(chunks)
+        vector_db = (
+            FAISS.from_texts(
+                chunks,
+                embeddings,
+                metadatas=metadatas
+            )
+        )
 
     else:
 
-        print("Creating New FAISS DB")
-
-        db = FAISS.from_texts(
-            chunks,
-            embeddings
+        print(
+            "Loading Existing FAISS..."
         )
 
-    db.save_local(VECTOR_PATH)
+        vector_db = (
+            FAISS.load_local(
+                VECTOR_PATH,
+                embeddings,
+                allow_dangerous_deserialization=True
+            )
+        )
 
-    print("FAISS Saved Successfully")
-    print("========== EMBEDDING END ==========\n")
+        vector_db.add_texts(
+            chunks,
+            metadatas=metadatas
+        )
+
+    vector_db.save_local(
+        VECTOR_PATH
+    )
+
+    print(
+        "Embeddings Saved Successfully"
+    )
 
 
+##################################################
+# Load Existing DB
+##################################################
+def load_vector_db():
+
+    global vector_db
+
+    if os.path.exists(
+            VECTOR_PATH
+    ):
+
+        print(
+            "\nLoading Existing Embeddings..."
+        )
+
+        vector_db = (
+            FAISS.load_local(
+                VECTOR_PATH,
+                embeddings,
+                allow_dangerous_deserialization=True
+            )
+        )
+
+        print(
+            "Embeddings Loaded Successfully"
+        )
+
+    else:
+
+        print(
+            "No Existing Embeddings"
+        )
+
+
+##################################################
+# Get DB
+##################################################
 def get_db():
 
-    print("\nLoading FAISS Database...")
+    global vector_db
 
-    if not os.path.exists(VECTOR_PATH):
+    if vector_db is None:
 
-        print("FAISS DB NOT FOUND")
+        load_vector_db()
 
-        return None
-
-    print("FAISS DB Loaded")
-
-    return FAISS.load_local(
-        VECTOR_PATH,
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
+    return vector_db
 
 
+##################################################
+# Retrieval
+##################################################
 def retrieve(question):
 
-    print("\n===================================")
-    print("Question:")
-    print(question)
-    print("===================================")
+    global vector_db
 
-    db = get_db()
+    if vector_db is None:
 
-    if db is None:
-        return None
+        print("No DB Loaded")
 
-    docs = db.similarity_search_with_score(
+        return None, []
+
+    docs = vector_db.similarity_search_with_score(
         question,
-        k=3
+        k=4
     )
 
-    print("\nRetrieved Documents:\n")
+    context_list = []
+    sources = []
+
+    print("\nRetrieved Docs:\n")
 
     for i, (doc, score) in enumerate(docs):
 
-        print(f"\nDocument {i+1}")
+        print("=" * 70)
+        print("Doc:", i + 1)
+        print("Score:", score)
+        print("Metadata:", doc.metadata)
+        print(doc.page_content[:400])
+        print("=" * 70)
 
-        print("Similarity Score :", score)
+        # REMOVE FILTER FOR NOW
 
-        print(doc.page_content[:500])
+        context_list.append(
+            doc.page_content
+        )
 
-    if len(docs) == 0:
+        src = doc.metadata.get(
+            "source",
+            "Unknown"
+        )
 
-        print("NO DOCUMENTS FOUND")
+        if src not in sources:
 
-        return None
+            sources.append(src)
+
+    if len(context_list) == 0:
+
+        print("No Relevant Documents Found")
+
+        return None, []
 
     context = "\n".join(
-        [
-            doc.page_content
-            for doc, score in docs
-        ]
+        context_list
     )
 
-    print("\n=========== CONTEXT ===========")
-
-    print(context[:1000])
-
-    print("================================\n")
-
-    return context
+    return context, sources
+##################################################
+# Auto Load on Startup
+##################################################
+load_vector_db()
