@@ -4,9 +4,12 @@ import { FaUserCircle } from "react-icons/fa";
 
 function MessageBubble({
   role,
-  text
+  text,
+  sources = []
 }) {
+
   return (
+
     <motion.div
       initial={{
         opacity: 0,
@@ -27,8 +30,10 @@ function MessageBubble({
       }
       `}
     >
+
       {
         role === "assistant" && (
+
           <div
             className="
             w-10
@@ -43,6 +48,7 @@ function MessageBubble({
           >
             <BsRobot />
           </div>
+
         )
       }
 
@@ -57,29 +63,86 @@ function MessageBubble({
         ${
           role === "user"
             ? `
-              bg-gradient-to-r
-              from-blue-600
-              to-indigo-600
-              text-white
+            bg-gradient-to-r
+            from-blue-600
+            to-indigo-600
+            text-white
             `
             : `
-              bg-white
+            bg-white
             `
         }
         `}
       >
+
         {text}
+
+        {
+          role === "assistant" &&
+          sources?.length > 0 && (
+
+            <div
+              className="
+              mt-5
+              pt-4
+              border-t
+              "
+            >
+
+              <p
+                className="
+                text-xs
+                text-gray-400
+                mb-3
+                "
+              >
+                Sources
+              </p>
+
+              {
+                sources.map(
+                  (src, i) => (
+
+                    <div
+                      key={i}
+                      className="
+                      bg-slate-100
+                      rounded-xl
+                      px-3
+                      py-2
+                      mb-2
+                      text-sm
+                      "
+                    >
+                      📄 {src}
+                    </div>
+
+                  )
+                )
+              }
+
+            </div>
+
+          )
+        }
+
       </div>
 
       {
         role === "user" && (
+
           <FaUserCircle
             size={40}
-            className="text-gray-500"
+            className="
+            text-gray-500
+            "
           />
+
         )
       }
+
     </motion.div>
+
   );
 }
 

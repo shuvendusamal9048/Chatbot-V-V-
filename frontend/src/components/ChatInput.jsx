@@ -2,50 +2,100 @@ import { Send } from "lucide-react";
 import { BsFillMicFill } from "react-icons/bs";
 import { useState } from "react";
 
+import {
+  startSpeech,
+  stopSpeech
+} from "../services/stt";
+
 function ChatInput({
   ws,
   setMessages,
-  setChatHistory
-}){
-  const [question, setQuestion] =
-    useState("");
+  setChatHistory,
+  stopAllAudio
+}) {
 
-  const [isRecording, setIsRecording] =
-    useState(false);
+  const [question, setQuestion] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
 
+
+  /////////////////////////////////////////////////////
+  // Normal Send
+  /////////////////////////////////////////////////////
   const send = () => {
+
     if (!question.trim()) return;
 
-    setMessages((prev) => [
+    // Stop any playing TTS before sending new message
+    stopAllAudio?.();
+
+    setMessages(prev => [
       ...prev,
-      {
-        role: "user",
-        text: question
-      },
-      {
-        role: "assistant",
-        text: ""
-      }
+      { role: "user", text: question },
+      { role: "assistant", text: "", sources: [] }
     ]);
 
-    setChatHistory(
-  prev => [
-    question,
-    ...prev
-  ]
-);
+    setChatHistory(prev => [question, ...prev]);
 
-console.log(
-  "State:",
-  ws.current?.readyState
-);
-
-    ws.current.send(question);
+    if (ws.current?.readyState === 1) {
+      ws.current.send(question);
+    }
 
     setQuestion("");
   };
 
+
+  /////////////////////////////////////////////////////
+  // Voice Send (called after STT returns transcript)
+  /////////////////////////////////////////////////////
+  const sendVoice = (text) => {
+
+    if (!text || !text.trim()) return;
+
+    // Stop any playing TTS before sending new message
+    stopAllAudio?.();
+
+    setMessages(prev => [
+      ...prev,
+      { role: "user", text: text },
+      { role: "assistant", text: "", sources: [] }
+    ]);
+
+    setChatHistory(prev => [text, ...prev]);
+
+    if (ws.current?.readyState === 1) {
+      ws.current.send(text);
+    }
+
+    setQuestion("");
+  };
+
+
+  /////////////////////////////////////////////////////
+  // Mic Toggle
+  /////////////////////////////////////////////////////
+  const handleMic = () => {
+
+    if (isRecording) {
+      // Stop recording → triggers STT → calls sendVoice
+      stopSpeech();
+      setIsRecording(false);
+      return;
+    }
+
+    // Stop any playing voice before recording
+    stopAllAudio?.();
+    setIsRecording(true);
+
+    startSpeech((text) => {
+      setQuestion(text);
+      sendVoice(text);
+      setIsRecording(false);
+    });
+  };
+
+
   return (
+
     <div
       className="
       p-6
@@ -54,12 +104,14 @@ console.log(
       border-t
       "
     >
+
       <div
         className="
         max-w-5xl
         mx-auto
         "
       >
+
         <div
           className="
           bg-white/90
@@ -72,27 +124,20 @@ console.log(
           flex
           items-center
           gap-3
-          transition-all
-          hover:shadow-2xl
           "
         >
+
           <input
             value={question}
             onChange={(e) =>
-              setQuestion(
-                e.target.value
-              )
+              setQuestion(e.target.value)
             }
             onKeyDown={(e) => {
-              if (
-                e.key === "Enter"
-              ) {
+              if (e.key === "Enter") {
                 send();
               }
             }}
-            placeholder="
-Ask anything about your documents...
-"
+            placeholder="Ask anything about your documents..."
             className="
             flex-1
             bg-transparent
@@ -103,14 +148,11 @@ Ask anything about your documents...
             "
           />
 
-          {/* Voice Button */}
+          {/* MIC BUTTON */}
 
           <button
-            onClick={() =>
-              setIsRecording(
-                !isRecording
-              )
-            }
+            onClick={handleMic}
+            title={isRecording ? "Stop recording" : "Start voice input"}
             className={`
             w-12
             h-12
@@ -121,33 +163,22 @@ Ask anything about your documents...
             transition-all
             duration-300
             shadow-md
-
             ${
               isRecording
-                ? `
-                  bg-red-500
-                  text-white
-                  animate-pulse
-                  scale-110
-                `
-                : `
-                  bg-slate-100
-                  text-slate-600
-                  hover:bg-blue-100
-                  hover:text-blue-600
-                `
+                ? "bg-red-500 text-white animate-pulse scale-110"
+                : "bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-600"
             }
-          `}
+            `}
           >
-            <BsFillMicFill
-              size={20}
-            />
+            <BsFillMicFill size={20} />
           </button>
 
-          {/* Send Button */}
+
+          {/* SEND BUTTON */}
 
           <button
             onClick={send}
+            title="Send message"
             className="
             w-12
             h-12
@@ -167,6 +198,7 @@ Ask anything about your documents...
           >
             <Send size={20} />
           </button>
+
         </div>
 
         {isRecording && (
@@ -179,14 +211,15 @@ Ask anything about your documents...
             font-medium
             "
           >
-            🎤 Listening...
+            Listening via Sarvam AI...
           </div>
         )}
+
       </div>
+
     </div>
+
   );
 }
-
-
 
 export default ChatInput;

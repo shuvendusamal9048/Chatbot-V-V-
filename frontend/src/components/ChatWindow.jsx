@@ -84,11 +84,12 @@ function ChatWindow({
           messages.map(
             (msg, i) => (
 
-              <MessageBubble
-                key={i}
-                role={msg.role}
-                text={msg.text}
-              />
+             <MessageBubble
+              key={i}
+              role={msg.role}
+              text={msg.text}
+              sources={msg.sources}
+            />
 
             )
           )
