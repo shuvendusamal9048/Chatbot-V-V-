@@ -3,6 +3,14 @@ import aiohttp
 import traceback
 
 
+def normalize_lang_code(lang_code: str):
+    if not lang_code:
+        return "en-IN"
+    if lang_code in {"od-IN", "or-IN"}:
+        return "or-IN"
+    return lang_code
+
+
 async def get_sarvam_tts(text: str, lang_code: str):
     """Return base64 WAV audio from Sarvam AI using a valid speaker list."""
     if not text or not text.strip():
@@ -18,15 +26,16 @@ async def get_sarvam_tts(text: str, lang_code: str):
         "api-subscription-key": sarvam_key,
         "Content-Type": "application/json",
     }
+    target_language_code = normalize_lang_code(lang_code)
 
-    speakers = ["manisha", "vidya", "arya", "karun", "hitesh", "abhilash", "anushka"]
+    speakers = ["aditya", "ritu", "ashutosh", "priya", "neha", "rahul", "pooja", "rohan", "simran", "kavya", "amit", "dev", "ishita", "shreya", "ratan", "varun", "manan", "sumit", "roopa", "kabir", "aayan", "shubh", "advait", "anand", "tanya", "tarun", "sunny", "mani", "gokul", "vijay", "shruti", "suhani", "mohit", "kavitha", "rehan", "soham", "rupali", "niharika"]
 
     for speaker in speakers:
         payload = {
             "text": text,
-            "target_language_code": lang_code,
+            "target_language_code": target_language_code,
             "speaker": speaker,
-            "model": "bulbul:v2",
+            "model": "bulbul:v3",
         }
 
         try:

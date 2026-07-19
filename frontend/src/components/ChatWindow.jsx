@@ -1,11 +1,13 @@
 import MessageBubble from "./MessageBubble";
+import TypingIndicator from "./TypingIndicator";
 import {
   useEffect,
   useRef
 } from "react";
 
 function ChatWindow({
-  messages
+  messages,
+  isStreaming = false
 }) {
 
   const bottomRef =
@@ -94,6 +96,10 @@ function ChatWindow({
             )
           )
         }
+
+        {isStreaming && (
+          <TypingIndicator />
+        )}
 
         <div ref={bottomRef} />
 

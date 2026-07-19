@@ -6,6 +6,9 @@ class Settings:
     APP_NAME = "Bihar Chatbot"
     APP_ENV = os.getenv("APP_ENV", "development")
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
     VECTOR_DB_PATH = os.getenv("VECTOR_DB_PATH", "faiss_db")
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
     CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]

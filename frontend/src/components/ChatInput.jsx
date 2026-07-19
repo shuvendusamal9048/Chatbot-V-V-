@@ -1,6 +1,6 @@
 import { Send } from "lucide-react";
 import { BsFillMicFill } from "react-icons/bs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import {
   startSpeech,
@@ -8,14 +8,25 @@ import {
 } from "../services/stt";
 
 function ChatInput({
-  ws,
+  wsRef,
+  sendPayload,
   setMessages,
   setChatHistory,
-  stopAllAudio
+  stopAllAudio,
+  setIsStreaming,
+  connectionStatus
 }) {
 
   const [question, setQuestion] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+
+  useEffect(() => {
+    const handlePartial = (e) => {
+      setQuestion(e.detail);
+    };
+    window.addEventListener("stt-partial", handlePartial);
+    return () => window.removeEventListener("stt-partial", handlePartial);
+  }, []);
 
 
   /////////////////////////////////////////////////////
@@ -25,8 +36,11 @@ function ChatInput({
 
     if (!question.trim()) return;
 
+    console.log("[ChatInput] send() connectionStatus=", connectionStatus, "text=", question);
+
     // Stop any playing TTS before sending new message
     stopAllAudio?.();
+    setIsStreaming?.(true);
 
     setMessages(prev => [
       ...prev,
@@ -36,8 +50,10 @@ function ChatInput({
 
     setChatHistory(prev => [question, ...prev]);
 
-    if (ws.current?.readyState === 1) {
-      ws.current.send(question);
+    const payload = JSON.stringify({ type: "text", text: question });
+    const sent = sendPayload(payload);
+    if (!sent) {
+      console.error("[ChatInput] Failed to send question payload");
     }
 
     setQuestion("");
@@ -51,8 +67,11 @@ function ChatInput({
 
     if (!text || !text.trim()) return;
 
+    console.log("[ChatInput] sendVoice() connectionStatus=", connectionStatus, "text=", text);
+
     // Stop any playing TTS before sending new message
     stopAllAudio?.();
+    setIsStreaming?.(true);
 
     setMessages(prev => [
       ...prev,
@@ -62,8 +81,10 @@ function ChatInput({
 
     setChatHistory(prev => [text, ...prev]);
 
-    if (ws.current?.readyState === 1) {
-      ws.current.send(text);
+    const payload = JSON.stringify({ type: "text", text });
+    const sent = sendPayload(payload);
+    if (!sent) {
+      console.error("[ChatInput] Failed to send voice payload");
     }
 
     setQuestion("");
@@ -74,23 +95,25 @@ function ChatInput({
   // Mic Toggle
   /////////////////////////////////////////////////////
   const handleMic = () => {
-
     if (isRecording) {
-      // Stop recording → triggers STT → calls sendVoice
       stopSpeech();
       setIsRecording(false);
+      wsRef.current?.send(JSON.stringify({ type: "speech_end" }));
       return;
     }
 
-    // Stop any playing voice before recording
     stopAllAudio?.();
     setIsRecording(true);
 
-    startSpeech((text) => {
-      setQuestion(text);
-      sendVoice(text);
-      setIsRecording(false);
-    });
+    startSpeech(
+      wsRef.current,
+      null,
+      () => {
+        console.log("[ChatInput] VAD silence detected, ending speech...");
+        setIsRecording(false);
+        wsRef.current?.send(JSON.stringify({ type: "speech_end" }));
+      }
+    );
   };
 
 
@@ -163,11 +186,10 @@ function ChatInput({
             transition-all
             duration-300
             shadow-md
-            ${
-              isRecording
+            ${isRecording
                 ? "bg-red-500 text-white animate-pulse scale-110"
                 : "bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-600"
-            }
+              }
             `}
           >
             <BsFillMicFill size={20} />
