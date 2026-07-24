@@ -22,26 +22,56 @@ def get_embeddings():
 
 
 def create_vector_db(text, source="Unknown"):
+    """
+    Create/update vector database with batched embedding to avoid memory spikes during upload.
+    Processes chunks in batches of 50 to prevent OOM errors on Render Free Plan (512 MB).
+    """
     global vector_db
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_text(text)
 
-    print(f"\nTotal Chunks : {len(chunks)}")
-
-    metadatas = [{"source": source} for _ in chunks]
+    print(f"\n[RAG] Total Chunks to Index: {len(chunks)}")
 
     emb = get_embeddings()  # Lazy load embeddings
+    
+    # Batch size: process 50 chunks at a time to avoid memory spike
+    BATCH_SIZE = 50
+    
     if not os.path.exists(VECTOR_PATH):
-        print("Creating New FAISS DB...")
-        vector_db = FAISS.from_texts(chunks, emb, metadatas=metadatas)
+        print("[RAG] Creating New FAISS DB (batch mode)...")
+        vector_db = None
+        
+        # Process first batch to initialize FAISS
+        first_batch = chunks[:BATCH_SIZE]
+        first_batch_meta = [{"source": source} for _ in first_batch]
+        vector_db = FAISS.from_texts(first_batch, emb, metadatas=first_batch_meta)
+        print(f"[RAG] Batch 1/{(len(chunks)-1)//BATCH_SIZE + 1}: Created FAISS with {len(first_batch)} chunks")
+        
+        # Process remaining batches
+        for i in range(BATCH_SIZE, len(chunks), BATCH_SIZE):
+            batch = chunks[i:i+BATCH_SIZE]
+            batch_meta = [{"source": source} for _ in batch]
+            vector_db.add_texts(batch, metadatas=batch_meta)
+            batch_num = (i // BATCH_SIZE) + 1
+            total_batches = (len(chunks)-1) // BATCH_SIZE + 1
+            print(f"[RAG] Batch {batch_num}/{total_batches}: Added {len(batch)} chunks")
     else:
-        print("Loading Existing FAISS...")
+        print("[RAG] Loading Existing FAISS (batch mode)...")
         vector_db = FAISS.load_local(VECTOR_PATH, emb, allow_dangerous_deserialization=True)
-        vector_db.add_texts(chunks, metadatas=metadatas)
+        print(f"[RAG] Loaded existing FAISS, now adding {len(chunks)} new chunks in batches...")
+        
+        # Add chunks in batches to existing FAISS
+        for i in range(0, len(chunks), BATCH_SIZE):
+            batch = chunks[i:i+BATCH_SIZE]
+            batch_meta = [{"source": source} for _ in batch]
+            vector_db.add_texts(batch, metadatas=batch_meta)
+            batch_num = (i // BATCH_SIZE) + 1
+            total_batches = (len(chunks)-1) // BATCH_SIZE + 1
+            print(f"[RAG] Batch {batch_num}/{total_batches}: Added {len(batch)} chunks to existing DB")
 
     vector_db.save_local(VECTOR_PATH)
-    print("Embeddings Saved Successfully")
+    print("[RAG] Embeddings Saved Successfully")
 
 
 def load_vector_db():
