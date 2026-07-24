@@ -1,4 +1,5 @@
 import os
+import gc
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -23,8 +24,9 @@ def get_embeddings():
 
 def create_vector_db(text, source="Unknown"):
     """
-    Create/update vector database with batched embedding to avoid memory spikes during upload.
-    Processes chunks in batches of 50 to prevent OOM errors on Render Free Plan (512 MB).
+    Create/update vector database with EXTREME batching and garbage collection.
+    Processes chunks in batches of 10 to prevent OOM on Render Free Plan (512 MB).
+    Each batch cycle: embed 10 chunks (~2-5MB) -> add to DB -> release memory -> repeat.
     """
     global vector_db
 
@@ -33,20 +35,29 @@ def create_vector_db(text, source="Unknown"):
 
     print(f"\n[RAG] Total Chunks to Index: {len(chunks)}")
 
+    # Clear the original text from memory immediately after splitting
+    del text
+    gc.collect()
+    
     emb = get_embeddings()  # Lazy load embeddings
     
-    # Batch size: process 50 chunks at a time to avoid memory spike
-    BATCH_SIZE = 50
+    # EXTREME: Batch size of 10 chunks (very conservative for 512MB Render limit)
+    BATCH_SIZE = 10
     
     if not os.path.exists(VECTOR_PATH):
-        print("[RAG] Creating New FAISS DB (batch mode)...")
+        print("[RAG] Creating New FAISS DB (extreme-batch mode, 10 chunks/batch)...")
         vector_db = None
         
         # Process first batch to initialize FAISS
         first_batch = chunks[:BATCH_SIZE]
         first_batch_meta = [{"source": source} for _ in first_batch]
         vector_db = FAISS.from_texts(first_batch, emb, metadatas=first_batch_meta)
-        print(f"[RAG] Batch 1/{(len(chunks)-1)//BATCH_SIZE + 1}: Created FAISS with {len(first_batch)} chunks")
+        total_batches = (len(chunks) + BATCH_SIZE - 1) // BATCH_SIZE
+        print(f"[RAG] Batch 1/{total_batches}: Created FAISS with {len(first_batch)} chunks")
+        
+        # Explicit garbage collection
+        del first_batch, first_batch_meta
+        gc.collect()
         
         # Process remaining batches
         for i in range(BATCH_SIZE, len(chunks), BATCH_SIZE):
@@ -54,12 +65,17 @@ def create_vector_db(text, source="Unknown"):
             batch_meta = [{"source": source} for _ in batch]
             vector_db.add_texts(batch, metadatas=batch_meta)
             batch_num = (i // BATCH_SIZE) + 1
-            total_batches = (len(chunks)-1) // BATCH_SIZE + 1
-            print(f"[RAG] Batch {batch_num}/{total_batches}: Added {len(batch)} chunks")
+            print(f"[RAG] Batch {batch_num}/{total_batches}: Added {len(batch)} chunks (~{len(batch)}KB text)")
+            
+            # Explicit garbage collection after each batch
+            del batch, batch_meta
+            gc.collect()
     else:
-        print("[RAG] Loading Existing FAISS (batch mode)...")
+        print("[RAG] Loading Existing FAISS (extreme-batch mode, 10 chunks/batch)...")
         vector_db = FAISS.load_local(VECTOR_PATH, emb, allow_dangerous_deserialization=True)
         print(f"[RAG] Loaded existing FAISS, now adding {len(chunks)} new chunks in batches...")
+        
+        total_batches = (len(chunks) + BATCH_SIZE - 1) // BATCH_SIZE
         
         # Add chunks in batches to existing FAISS
         for i in range(0, len(chunks), BATCH_SIZE):
@@ -67,11 +83,19 @@ def create_vector_db(text, source="Unknown"):
             batch_meta = [{"source": source} for _ in batch]
             vector_db.add_texts(batch, metadatas=batch_meta)
             batch_num = (i // BATCH_SIZE) + 1
-            total_batches = (len(chunks)-1) // BATCH_SIZE + 1
-            print(f"[RAG] Batch {batch_num}/{total_batches}: Added {len(batch)} chunks to existing DB")
+            print(f"[RAG] Batch {batch_num}/{total_batches}: Added {len(batch)} chunks (~{len(batch)}KB text) to existing DB")
+            
+            # Explicit garbage collection after each batch
+            del batch, batch_meta
+            gc.collect()
 
     vector_db.save_local(VECTOR_PATH)
     print("[RAG] Embeddings Saved Successfully")
+    
+    # Final cleanup
+    del chunks
+    gc.collect()
+    print("[RAG] Memory cleanup complete")
 
 
 def load_vector_db():
