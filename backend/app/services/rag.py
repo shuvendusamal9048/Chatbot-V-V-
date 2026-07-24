@@ -6,11 +6,19 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 VECTOR_PATH = "faiss_db"
 
-print("Loading Embedding Model...")
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-print("Embedding Model Loaded")
-
+# Lazy-loaded at first use, not at import time
+embeddings = None
 vector_db = None
+
+
+def get_embeddings():
+    """Lazy load embeddings model on first access to reduce startup memory."""
+    global embeddings
+    if embeddings is None:
+        print("[RAG] Loading Embedding Model...")
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        print("[RAG] Embedding Model Loaded")
+    return embeddings
 
 
 def create_vector_db(text, source="Unknown"):
@@ -23,12 +31,13 @@ def create_vector_db(text, source="Unknown"):
 
     metadatas = [{"source": source} for _ in chunks]
 
+    emb = get_embeddings()  # Lazy load embeddings
     if not os.path.exists(VECTOR_PATH):
         print("Creating New FAISS DB...")
-        vector_db = FAISS.from_texts(chunks, embeddings, metadatas=metadatas)
+        vector_db = FAISS.from_texts(chunks, emb, metadatas=metadatas)
     else:
         print("Loading Existing FAISS...")
-        vector_db = FAISS.load_local(VECTOR_PATH, embeddings, allow_dangerous_deserialization=True)
+        vector_db = FAISS.load_local(VECTOR_PATH, emb, allow_dangerous_deserialization=True)
         vector_db.add_texts(chunks, metadatas=metadatas)
 
     vector_db.save_local(VECTOR_PATH)
@@ -39,11 +48,12 @@ def load_vector_db():
     global vector_db
 
     if os.path.exists(VECTOR_PATH):
-        print("\nLoading Existing Embeddings...")
-        vector_db = FAISS.load_local(VECTOR_PATH, embeddings, allow_dangerous_deserialization=True)
-        print("Embeddings Loaded Successfully")
+        print("\n[RAG] Loading Existing Embeddings...")
+        emb = get_embeddings()  # Lazy load embeddings
+        vector_db = FAISS.load_local(VECTOR_PATH, emb, allow_dangerous_deserialization=True)
+        print("[RAG] Embeddings Loaded Successfully")
     else:
-        print("No Existing Embeddings")
+        print("[RAG] No Existing Embeddings")
 
 
 def get_db():
@@ -57,7 +67,10 @@ def retrieve(question):
     global vector_db
 
     if vector_db is None:
-        print("No DB Loaded")
+        load_vector_db()  # Lazy load on first use
+
+    if vector_db is None:
+        print("[RAG] No DB Loaded")
         return None, []
 
     docs = vector_db.similarity_search_with_score(question, k=4)
@@ -85,6 +98,3 @@ def retrieve(question):
 
     context = "\n".join(context_list)
     return context, sources
-
-
-load_vector_db()

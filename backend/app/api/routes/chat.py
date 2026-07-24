@@ -25,17 +25,24 @@ ABBREVIATIONS = (
 STT_WS_URL = "wss://api.sarvam.ai/speech-to-text/ws?model=saaras:v3"
 TTS_WS_URL = "wss://api.sarvam.ai/text-to-speech/ws?model=bulbul:v3&send_completion_event=true"
 
+# Cache LLM model to avoid recreating ~50MB per request
+_chat_model_cache = None
+
 
 def get_chat_model():
-    if settings.LLM_PROVIDER == "gemini":
-        print(f"[CHAT] using Gemini provider with model={settings.GEMINI_MODEL}")
-        return ChatGoogleGenerativeAI(
-            model=settings.GEMINI_MODEL,
-            google_api_key=settings.GEMINI_API_KEY,
-            temperature=0
-        )
-    print(f"[CHAT] using Ollama provider with model={settings.OLLAMA_MODEL}")
-    return ChatOllama(model=settings.OLLAMA_MODEL, temperature=0)
+    global _chat_model_cache
+    if _chat_model_cache is None:
+        if settings.LLM_PROVIDER == "gemini":
+            print(f"[CHAT] Initializing Gemini provider with model={settings.GEMINI_MODEL}")
+            _chat_model_cache = ChatGoogleGenerativeAI(
+                model=settings.GEMINI_MODEL,
+                google_api_key=settings.GEMINI_API_KEY,
+                temperature=0
+            )
+        else:
+            print(f"[CHAT] Initializing Ollama provider with model={settings.OLLAMA_MODEL}")
+            _chat_model_cache = ChatOllama(model=settings.OLLAMA_MODEL, temperature=0)
+    return _chat_model_cache
 
 
 def sarvam_headers():
