@@ -5,7 +5,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 
-VECTOR_PATH = "faiss_db"
+from app.core.config import settings
+
+VECTOR_PATH = settings.VECTOR_DB_PATH
 
 # Lazy-loaded at first use, not at import time
 embeddings = None

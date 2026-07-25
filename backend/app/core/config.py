@@ -15,6 +15,9 @@ class Settings:
     SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
     API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
     WS_BASE_URL = os.getenv("WS_BASE_URL", "ws://localhost:8000")
+    REDIS_ENABLED = os.getenv("REDIS_ENABLED", "false").lower() in ("true", "1", "t")
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
 
 
 settings = Settings()

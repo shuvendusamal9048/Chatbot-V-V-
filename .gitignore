@@ -1,0 +1,30 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python cache & virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Node dependencies & build output
+node_modules/
+dist/
+build/
+
+# Local data & uploads (runtime generated)
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/faiss_db/
+metadata.json
+backend/metadata.json
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,3 +1,34 @@
+# Virtual environments
 .venv
+venv
+env
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment variables
 .env
-uploads
+.env.local
+.env.*.local
+
+# Local uploads & DB
+uploads/
+faiss_db/
+metadata.json
+
+# Logs & packaging
+*.log
+dist/
+build/
+*.egg-info/
+
+# IDE / Editor settings
+.vscode/
+.idea/
+*.swp
+*~
+
+# Testing
+.pytest_cache/
+.coverage
